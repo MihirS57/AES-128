@@ -95,6 +95,7 @@ def rotWord(key_box):
       temp2 = dup_box[i][3]
       dup_box[i][3] = temp
       temp = temp2
+   print("RotWord",dup_box)
    return dup_box
 
 def subWord(key_box):
