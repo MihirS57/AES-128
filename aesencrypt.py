@@ -34,39 +34,90 @@ aes_sbox = [
         '41', 16), int('99', 16), int('2d', 16), int('0f', 16), int('b0', 16), int('54', 16), int('bb', 16), int('16', 16)]
 ]
 
+def XORRound(pt_box,key_box):
+    output_box = [[0] * 4 for _ in range(4)]
+    for i in range(4):
+        for j in range(4):
+            # print(type(pt_box[i][j]),type(key_box[i][j]))
+            output_box[i][j] = pt_box[i][j]^key_box[i][j]
+    return output_box
+
 def lookup(byte):
     x = byte >> 4
     y = byte & 15
     return aes_sbox[x][y]
 
-def XORRound(pt_box,key_box):
-    output_box = pt_box
+def byteSub(pt_box):
+    out_box = pt_box
     for i in range(4):
         for j in range(4):
-            output_box[i][j] = pt_box[i][j]^key_box[i][j]
-    return output_box
+            out_box[i][j] = lookup(pt_box[i][j])
+    return out_box
 
 def shiftRows(pt_box):
+    out_box = pt_box
     #2nd Row
-    p10 = pt_box[1][0]
+    p10 = out_box[1][0]
     for i in range(1,4):
-        pt_box[1][i-1] = pt_box[1,i]
-    pt_box[1][3] = p10
+        out_box[1][i-1] = out_box[1][i]
+    out_box[1][3] = p10
 
     #3rd Row
-    p20 = pt_box[2][0]
-    p21 = pt_box[2][1]
-    pt_box[2][0] = pt_box[2][2]
-    pt_box[2][1] = pt_box[2][3]
-    pt_box[2][2] = p20
-    pt_box[2][3] = p21
+    p20 = out_box[2][0]
+    p21 = out_box[2][1]
+    out_box[2][0] = out_box[2][2]
+    out_box[2][1] = out_box[2][3]
+    out_box[2][2] = p20
+    out_box[2][3] = p21
 
     #4th Row
-    p33 = pt_box[3][3]
+    p33 = out_box[3][3]
     for i in range(3,0,-1):
-        pt_box[3][i] = pt_box[3][i-1]
-    pt_box[3][0] = p33
+        out_box[3][i] = out_box[3][i-1]
+    out_box[3][0] = p33
+    return out_box
 
+def gmul(a, b):
+    if b == 1:
+        return a
+    tmp = (a << 1) & 0xff
+    if b == 2:
+        return tmp if a < 128 else tmp ^ 0x1b
+    if b == 3:
+        return gmul(a, 2) ^ a
 
-def displayThisInEncrypt(round_keys,pt_box):
-    print(f'Key received: {round_keys}; Plaintext: {pt_box}')
+def mixColumns(pt_box):
+    c = [[2,3,1,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]
+    out_box = pt_box
+
+    for i in range(4):
+        for j in range(4):
+            out_box[i][j] = gmul(pt_box[i][0], c[0][j]) ^ gmul(pt_box[i][1], c[1][j]) ^ gmul(pt_box[i][2], c[2][j]) ^ gmul(pt_box[i][3], c[3][j])
+    return out_box
+
+def encryptIt(plaintext, round_keys):
+    # Plaintext is 4x4 byte box, round_keys is a list of 4x4 byte keys
+    round_output = plaintext
+    for i in range(9):
+        #XOR with 0th round key
+        xor_output = XORRound(round_output,round_keys[i])
+        #Byte Sub
+        sub_output = byteSub(xor_output)
+        #Shift Row
+        shift_output = shiftRows(sub_output)
+        #Mix Columns
+        mix_output = mixColumns(shift_output)
+        round_output = mix_output
+    
+    xor_output = XORRound(round_output,round_keys[9])
+    sub_output = byteSub(xor_output)
+    shift_output = shiftRows(sub_output)
+    xor_output = XORRound(shift_output,round_keys[10])
+    encrypted_bytearr = []
+    for i in range(4):
+        for j in range(4):
+            encrypted_bytearr.append(xor_output[i][j])
+    encrypted_string = ''.join(format(x, '02x') for x in encrypted_bytearr)
+    print(f'Plaintext Encrypted to {encrypted_string}')
+    return xor_output
+

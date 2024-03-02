@@ -1,6 +1,7 @@
 from aesencrypt import *
 from aesdecrypt import *
 import os
+import numpy as np
 
 KEY_SIZE = 128  #in bits
 BLOCK_SIZE = 128    #in bits
@@ -95,7 +96,6 @@ def rotWord(key_box):
       temp2 = dup_box[i][3]
       dup_box[i][3] = temp
       temp = temp2
-   print("RotWord",dup_box)
    return dup_box
 
 def subWord(key_box):
@@ -112,20 +112,19 @@ def rCon(key_box,round):
       rcon.append([first_byte, 0, 0, 0])
       if rcon[i-1][0] > 0x80:
          rcon[i-1][0] = rcon[i-1][0] ^ 0x11b
-   print(rcon)
    dup_box[0][3] = dup_box[0][3]^rcon[round][0]
    return dup_box
 
 def expandKey(key_byte):
    round_keys = []
-   key_box = []
+   key_box = np.array(key_byte).reshape(4, 4)
    key_row = []
    #dividing the key into four rows and four columns
-   for byte in key_byte:
-      key_row.append(byte)
-      if len(key_row) == 4:
-         key_box.append(key_row)
-         key_row = []
+#    for byte in key_byte:
+#       key_row.append(byte)
+#       if len(key_row) == 4:
+#          key_box.append(bytearray(key_row))
+#          key_row = []
    og_key = key_box
    prev_key = key_box
    print(f'Original Random Key: {key_box}') 
@@ -148,9 +147,17 @@ def expandKey(key_byte):
                new_round_key[k][j] = new_round_key[k][j-1]^prev_key[k][j]
       round_keys.append(new_round_key)
    print(f'{len(round_keys)} round keys have been generated')
-   print(f'Round keys are as follows: {round_keys}')
    return round_keys
 
+def boxPTBytes(pt_box):
+   box_output = np.array(pt_box).reshape(4, 4)
+   return box_output
+#    key_row = []
+#    for byte in pt_box:
+#       key_row.append(byte)
+#       if len(key_row) == 4:
+#          box_output.append(bytearray(key_row))
+#          key_row = []
 
 plaintext = input('Enter text you want to test AES on: ')
 
@@ -159,6 +166,8 @@ plaintext_hex = plaintext_byte.hex()
 plaintext_size = len(plaintext_hex)*4
 padding_size = int((128-plaintext_size)/8)
 padded_pt_bytes = padInPKCS(plaintext_byte,padding_size)
+boxed_pt_bytes = boxPTBytes(padded_pt_bytes)
+
 
 key_byte = bytearray(os.urandom(int(KEY_SIZE/8)))
 key_hex = key_byte.hex()
@@ -166,11 +175,8 @@ round_keys = expandKey(key_byte)
 
 #AES encryption for 1 block only
 
-print(f'Plaintext in byte array = {plaintext_byte}')
-print(f'Key in byte array = {key_byte}')
+print(f'Plaintext (in hex after padding) = {plaintext_hex}')
+print(f'Key used = {key_hex}')
+print(f'Round keys generated = {len(round_keys)} keys')
 
-# print(f'Length of your plaintext = {plaintext_size} bits, number of bytes to be padded = {padding_size}')
-# print(f'Plaintext after padding in hexadecimal = {padded_pt_bytes.hex()} \nAnd its length = {len(padded_pt_bytes.hex())*4}')
-# print(f'Here is the secret key = {key_hex}')
-# displayThisInEncrypt(plaintext_hex)
-# displayThisInDecrypt(plaintext_hex)
+encryptIt(boxed_pt_bytes,round_keys)
