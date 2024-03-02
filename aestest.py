@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 KEY_SIZE = 128  #in bits
-BLOCK_SIZE = 128    #in bits
+BLOCK_SIZE = 128  #in bits
 
 aes_sbox = [
     [int('63', 16), int('7c', 16), int('77', 16), int('7b', 16), int('f2', 16), int('6b', 16), int('6f', 16), int('c5', 16), int(
@@ -86,9 +86,6 @@ def reverse_lookup(byte):
     y = byte & 15
     return rev_sbox[x][y]
 
-def padInPKCS(message_bytes,padding_size):
-   return message_bytes + bytes([padding_size] * padding_size)
-
 def rotWord(key_box):
    dup_box = key_box.copy()
    temp = dup_box[3][3] #storing the first byte of w4
@@ -143,36 +140,70 @@ def expandKey(key_byte):
    print(f'{len(round_keys)} round keys have been generated')
    return round_keys
 
+def processPT(pt_bytes,pt_hex):
+    plaintext_size = len(pt_hex)*4
+    num_blocks_req = int(plaintext_size/128) + 1
+    if num_blocks_req == 1:
+        padding_size = int((128-plaintext_size)/8)
+        if padding_size == 0:
+            padding_size = 16
+        padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
+        boxed_pt_bytes = boxPTBytes(padded_pt_bytes)
+        return num_blocks_req,boxed_pt_bytes
+    else:
+        padding_size = int(((num_blocks_req*128)-plaintext_size)/8)
+        if padding_size == 0:
+            padding_size = 16
+        padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
+        print(len(padded_pt_bytes))
+        pt_blocks = []
+        for i in range(num_blocks_req):
+            block_i = [padded_pt_bytes[j] for j in range(16*i,(i+1)*16)]
+            boxed_pt_bytes = boxPTBytes(block_i)
+            pt_blocks.append(boxed_pt_bytes)
+        return num_blocks_req,pt_blocks
+        
+def padInPKCS(message_bytes,padding_size):
+   return message_bytes + bytes([padding_size] * padding_size)
+
 def boxPTBytes(pt_box):
    box_output = np.array(pt_box).reshape(4, 4)
    return box_output
-#    key_row = []
-#    for byte in pt_box:
-#       key_row.append(byte)
-#       if len(key_row) == 4:
-#          box_output.append(bytearray(key_row))
-#          key_row = []
 
-plaintext = input('Enter text you want to test AES on: ')
-
-plaintext_byte = bytearray(plaintext,'utf-8')
-plaintext_hex = plaintext_byte.hex()
-plaintext_size = len(plaintext_hex)*4
-padding_size = int((128-plaintext_size)/8)
-padded_pt_bytes = padInPKCS(plaintext_byte,padding_size)
-boxed_pt_bytes = boxPTBytes(padded_pt_bytes)
-
-
+#Random key acquired and processed
 key_byte = bytearray(os.urandom(int(KEY_SIZE/8)))
 key_hex = key_byte.hex()
 round_keys = expandKey(key_byte)
 
-#AES encryption for 1 block only
+plaintext = input('Enter text you want to test AES on: ')
+plaintext_byte = bytearray(plaintext,'utf-8')
+plaintext_hex = plaintext_byte.hex()
+print(plaintext_hex)
+numblocks, pt_blocks = processPT(plaintext_byte,plaintext_hex)
 
-print(f'Plaintext (in hex after padding) = {padded_pt_bytes.hex()}')
-print(f'Key used = {key_hex}')
-print(f'Round keys generated = {len(round_keys)} keys')
+if numblocks == 1:
+    encrypted_bytes,encrypted_hex = encryptIt(pt_blocks,round_keys)
+    decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+    np_array = np.array(decrypted_bytes)
+    flatten_array = np_array.ravel()
+    last_byte = flatten_array[len(flatten_array)-1]
+    unpadded_decrypted_bytes = flatten_array[:len(flatten_array) - int(last_byte)]
+    decrypted_string = ''.join(format(x, '02x') for x in unpadded_decrypted_bytes)
+    print(decrypted_string)
+else:
+    decrypted_bytearr = []
+    for i in range(numblocks):
+        encrypted_bytes,encrypted_hex = encryptIt(pt_blocks[i],round_keys)
+        decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+        np_array = np.array(decrypted_bytes)
+        flatten_array = np_array.ravel()
+        decrypted_bytearr.append(flatten_array)
+    np_array = np.array(decrypted_bytearr)
+    flatten_array = np_array.ravel()
+    last_byte = flatten_array[len(flatten_array)-1]
+    unpadded_decrypted_bytes = flatten_array[:len(flatten_array) - int(last_byte)]
+    decrypted_string = ''.join(format(x, '02x') for x in unpadded_decrypted_bytes)
+    print(decrypted_string)
 
-encrypted_bytes,encrypted_hex = encryptIt(boxed_pt_bytes,round_keys)
-decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+    
 
