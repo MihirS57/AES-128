@@ -90,7 +90,7 @@ def padInPKCS(message_bytes,padding_size):
    return message_bytes + bytes([padding_size] * padding_size)
 
 def rotWord(key_box):
-   dup_box = key_box
+   dup_box = key_box.copy()
    temp = dup_box[3][3] #storing the first byte of w4
    for i in range(4):
       temp2 = dup_box[i][3]
@@ -99,13 +99,13 @@ def rotWord(key_box):
    return dup_box
 
 def subWord(key_box):
-   dup_box = key_box
+   dup_box = key_box.copy()
    for i in range(4):
       dup_box[i][3] = lookup(dup_box[i][3])
    return dup_box
 
 def rCon(key_box,round):
-   dup_box = key_box
+   dup_box = key_box.copy()
    rcon = [[1, 0, 0, 0]]
    for i in range(1, 12):
       first_byte = rcon[i-1][0]*2
@@ -118,24 +118,18 @@ def rCon(key_box,round):
 def expandKey(key_byte):
    round_keys = []
    key_box = np.array(key_byte).reshape(4, 4)
-   key_row = []
-   #dividing the key into four rows and four columns
-#    for byte in key_byte:
-#       key_row.append(byte)
-#       if len(key_row) == 4:
-#          key_box.append(bytearray(key_row))
-#          key_row = []
-   og_key = key_box
-   prev_key = key_box
+   og_key = key_box.copy()
+   prev_key = key_box.copy()
    print(f'Original Random Key: {key_box}') 
+   round_keys.append(og_key)
    #Now generating round keys
-   for i in range(11):
+   for i in range(10):
       if i == 0:
-         prev_key = og_key
+         prev_key = og_key.copy()
       else:
-         prev_key = round_keys[i-1]
+         prev_key = round_keys[i-1].copy()
       
-      new_round_key = prev_key
+      new_round_key = prev_key.copy()
       modp_key = rotWord(prev_key)
       modp_key = subWord(modp_key)
       modp_key = rCon(modp_key,i)
@@ -175,8 +169,10 @@ round_keys = expandKey(key_byte)
 
 #AES encryption for 1 block only
 
-print(f'Plaintext (in hex after padding) = {plaintext_hex}')
+print(f'Plaintext (in hex after padding) = {padded_pt_bytes.hex()}')
 print(f'Key used = {key_hex}')
 print(f'Round keys generated = {len(round_keys)} keys')
 
-encryptIt(boxed_pt_bytes,round_keys)
+encrypted_bytes,encrypted_hex = encryptIt(boxed_pt_bytes,round_keys)
+decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+

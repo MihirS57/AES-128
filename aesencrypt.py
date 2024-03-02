@@ -35,11 +35,10 @@ aes_sbox = [
 ]
 
 def XORRound(pt_box,key_box):
-    output_box = [[0] * 4 for _ in range(4)]
+    output_box = pt_box.copy()
     for i in range(4):
         for j in range(4):
-            # print(type(pt_box[i][j]),type(key_box[i][j]))
-            output_box[i][j] = pt_box[i][j]^key_box[i][j]
+            output_box[i][j] = output_box[i][j]^key_box[i][j]
     return output_box
 
 def lookup(byte):
@@ -48,14 +47,14 @@ def lookup(byte):
     return aes_sbox[x][y]
 
 def byteSub(pt_box):
-    out_box = pt_box
+    out_box = pt_box.copy()
     for i in range(4):
         for j in range(4):
             out_box[i][j] = lookup(pt_box[i][j])
     return out_box
 
 def shiftRows(pt_box):
-    out_box = pt_box
+    out_box = pt_box.copy()
     #2nd Row
     p10 = out_box[1][0]
     for i in range(1,4):
@@ -87,8 +86,11 @@ def gmul(a, b):
         return gmul(a, 2) ^ a
 
 def mixColumns(pt_box):
-    c = [[2,3,1,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]
-    out_box = pt_box
+    c = [[2, 3, 1, 1],
+    [1, 2, 3, 1],
+    [1, 1, 2, 3],
+    [3, 1, 1, 2]]
+    out_box = pt_box.copy()
 
     for i in range(4):
         for j in range(4):
@@ -97,7 +99,7 @@ def mixColumns(pt_box):
 
 def encryptIt(plaintext, round_keys):
     # Plaintext is 4x4 byte box, round_keys is a list of 4x4 byte keys
-    round_output = plaintext
+    round_output = plaintext.copy()
     for i in range(9):
         #XOR with 0th round key
         xor_output = XORRound(round_output,round_keys[i])
@@ -107,7 +109,7 @@ def encryptIt(plaintext, round_keys):
         shift_output = shiftRows(sub_output)
         #Mix Columns
         mix_output = mixColumns(shift_output)
-        round_output = mix_output
+        round_output = mix_output.copy()
     
     xor_output = XORRound(round_output,round_keys[9])
     sub_output = byteSub(xor_output)
@@ -119,5 +121,5 @@ def encryptIt(plaintext, round_keys):
             encrypted_bytearr.append(xor_output[i][j])
     encrypted_string = ''.join(format(x, '02x') for x in encrypted_bytearr)
     print(f'Plaintext Encrypted to {encrypted_string}')
-    return xor_output
+    return xor_output,encrypted_string
 
