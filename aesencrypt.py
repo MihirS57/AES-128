@@ -76,14 +76,14 @@ def shiftRows(pt_box):
     out_box[3][0] = p33
     return out_box
 
-def gmul(a, b):
-    if b == 1:
-        return a
-    tmp = (a << 1) & 0xff
-    if b == 2:
-        return tmp if a < 128 else tmp ^ 0x1b
-    if b == 3:
-        return gmul(a, 2) ^ a
+def gmul(pt, c):
+    if c == 1:
+        return pt
+    tmp = (pt << 1) & 0xff
+    if c == 2:
+        return tmp if pt < 128 else tmp ^ 0x1b
+    if c == 3:
+        return gmul(pt, 2) ^ pt
 
 def mixColumns(pt_box):
     c = [[2, 3, 1, 1],

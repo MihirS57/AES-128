@@ -81,11 +81,6 @@ def lookup(byte):
     y = byte & 15
     return aes_sbox[x][y]
 
-def reverse_lookup(byte):
-    x = byte >> 4
-    y = byte & 15
-    return rev_sbox[x][y]
-
 def rotWord(key_box):
    dup_box = key_box.copy()
    temp = dup_box[3][3] #storing the first byte of w4
@@ -104,7 +99,7 @@ def subWord(key_box):
 def rCon(key_box,round):
    dup_box = key_box.copy()
    rcon = [[1, 0, 0, 0]]
-   for i in range(1, 12):
+   for i in range(1, round+1):
       first_byte = rcon[i-1][0]*2
       rcon.append([first_byte, 0, 0, 0])
       if rcon[i-1][0] > 0x80:
@@ -112,7 +107,7 @@ def rCon(key_box,round):
    dup_box[0][3] = dup_box[0][3]^rcon[round][0]
    return dup_box
 
-def expandKey(key_byte):
+def expandKey(key_byte, demo_flag):
    round_keys = []
    key_box = np.array(key_byte).reshape(4, 4)
    og_key = key_box.copy()
@@ -124,7 +119,6 @@ def expandKey(key_byte):
          prev_key = og_key.copy()
       else:
          prev_key = round_keys[i-1].copy()
-      
       new_round_key = prev_key.copy()
       modp_key = rotWord(prev_key)
       modp_key = subWord(modp_key)
@@ -136,9 +130,18 @@ def expandKey(key_byte):
             else:
                new_round_key[k][j] = new_round_key[k][j-1]^prev_key[k][j]
       round_keys.append(new_round_key)
+   if demo_flag:
+    print('\n----------------------------------------------------------------------------------------')
+    print(f'Number of round keys generated: {len(round_keys)}')
+    print('----------------------------------------------------------------------------------------')
+   
+   
    return round_keys
 
-def processPT(pt_bytes,pt_hex):
+def padInPKCS(message_bytes,padding_size):
+   return message_bytes + bytes([padding_size] * padding_size)
+
+def processPT(pt_bytes,pt_hex, demo_flag):
     plaintext_size = len(pt_hex)*4
     num_blocks_req = int(plaintext_size/128) + 1
     if num_blocks_req == 1:
@@ -146,7 +149,11 @@ def processPT(pt_bytes,pt_hex):
         if padding_size == 0:
             padding_size = 16   #adding a dummy block
         padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
-        print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
+        if demo_flag:
+            print('\n----------------------------------------------------------------------------------------')
+            print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
+            print(f'Number of blocks: {num_blocks_req}\nSize of padding added: {padding_size}\nDummy Block added ? {padding_size == 16}')
+            print('----------------------------------------------------------------------------------------')
         boxed_pt_bytes = boxPTBytes(padded_pt_bytes)
         return num_blocks_req,boxed_pt_bytes
     else:
@@ -154,7 +161,11 @@ def processPT(pt_bytes,pt_hex):
         if padding_size == 0:
             padding_size = 16   #adding a dummy block
         padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
-        print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
+        if demo_flag:
+            print('\n----------------------------------------------------------------------------------------')
+            print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
+            print(f'Number of blocks: {num_blocks_req}\nSize of padding added: {padding_size}\nDummy Block added ? {padding_size == 16}')
+            print('----------------------------------------------------------------------------------------')
         pt_blocks = []
         for i in range(num_blocks_req):
             block_i = [padded_pt_bytes[j] for j in range(16*i,(i+1)*16)]
@@ -162,9 +173,6 @@ def processPT(pt_bytes,pt_hex):
             pt_blocks.append(boxed_pt_bytes)
         return num_blocks_req,pt_blocks
         
-def padInPKCS(message_bytes,padding_size):
-   return message_bytes + bytes([padding_size] * padding_size)
-
 def unPadPKCS(decrypted_bytes):
     np_array = np.array(decrypted_bytes)
     flatten_array = np_array.ravel()
@@ -177,43 +185,64 @@ def boxPTBytes(pt_box):
    box_output = np.array(pt_box).reshape(4, 4)
    return box_output
 
+print("Please Note: Running the program under demo mode will print extra information and stats about the program and its state.")
+demo_flag = input("Enter 1 to run this program under demo mode else enter 0 or nothing to run the program normally = ")
+
 #Random key acquired and processed
 key_byte = bytearray(os.urandom(int(KEY_SIZE/8)))
 key_hex = key_byte.hex()
 print(f'\nRandom key (in Hexadecimal) = {key_hex} \n')
-round_keys = expandKey(key_byte)
+round_keys = expandKey(key_byte, demo_flag)
 
-plaintext = input('Enter text you want to test AES on: ')
-plaintext_byte = bytearray(plaintext,'utf-8')
-plaintext_hex = plaintext_byte.hex()
-print(f'\nPlaintext (in Hexadecimal) = {plaintext_hex}')
-numblocks, pt_blocks = processPT(plaintext_byte,plaintext_hex)
-
-if numblocks == 1:
-    encrypted_bytes,encrypted_hex = encryptIt(pt_blocks,round_keys)
-    print(f'\nCiphertext = {encrypted_hex}')
-    decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
-    print(f'Decrypted (in Hexadecimal) = {decrypted_hex}')
-    decrypted_hex = unPadPKCS(decrypted_bytes)
-    print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
-    print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
+if demo_flag == "1":
+    demo_flag = True
 else:
-    encrypted_hexstr = ''
-    decrypted_hexstr = ''
-    decrypted_bytearr = []
-    for i in range(numblocks):
-        encrypted_bytes,encrypted_hex = encryptIt(pt_blocks[i],round_keys)
-        encrypted_hexstr = encrypted_hexstr+encrypted_hex
+    demo_flag = False
+plaintext = input('Enter text you want to test AES on: ')
+if plaintext == " " or len(plaintext) == 0:
+    print("Empty plaintext added! Exiting now...")
+else:
+    plaintext_byte = bytearray(plaintext,'utf-8')
+    plaintext_hex = plaintext_byte.hex()
+    if demo_flag:
+        print('----------------------------------------------------------------------------------------')
+        print(f'Plaintext (in Hexadecimal) = {plaintext_hex}')
+        print('----------------------------------------------------------------------------------------')
+    numblocks, pt_blocks = processPT(plaintext_byte,plaintext_hex, demo_flag)
+
+    if numblocks == 1:
+        encrypted_bytes,encrypted_hex = encryptIt(pt_blocks,round_keys)
+        print(f'\nCiphertext = {encrypted_hex}\n')
         decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
-        decrypted_hexstr = decrypted_hexstr+decrypted_hex
-        np_array = np.array(decrypted_bytes)
-        flatten_array = np_array.ravel()
-        decrypted_bytearr.append(flatten_array)
-    print(f'\nCiphertext = {encrypted_hexstr}')
-    print(f'Decrypted (in Hexadecimal) = {decrypted_hexstr}')
-    decrypted_hex = unPadPKCS(decrypted_bytearr)
-    print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
-    print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
+        if demo_flag:
+            print('----------------------------------------------------------------------------------------')
+            print(f'Decrypted (in Hexadecimal) = {decrypted_hex}')
+        decrypted_hex = unPadPKCS(decrypted_bytes)
+        if demo_flag:
+            print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
+            print('----------------------------------------------------------------------------------------')
+        print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
+    else:
+        encrypted_hexstr = ''
+        decrypted_hexstr = ''
+        decrypted_bytearr = []
+        for i in range(numblocks):
+            encrypted_bytes,encrypted_hex = encryptIt(pt_blocks[i],round_keys)
+            encrypted_hexstr = encrypted_hexstr+encrypted_hex
+            decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+            decrypted_hexstr = decrypted_hexstr+decrypted_hex
+            np_array = np.array(decrypted_bytes)
+            flatten_array = np_array.ravel()
+            decrypted_bytearr.append(flatten_array)
+        print(f'\nCiphertext = {encrypted_hexstr}\n')
+        if demo_flag:
+            print('----------------------------------------------------------------------------------------')
+            print(f'Decrypted (in Hexadecimal) = {decrypted_hexstr}')
+        decrypted_hex = unPadPKCS(decrypted_bytearr)
+        if demo_flag:
+            print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
+            print('----------------------------------------------------------------------------------------')
+        print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
 
     
 
