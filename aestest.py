@@ -117,7 +117,6 @@ def expandKey(key_byte):
    key_box = np.array(key_byte).reshape(4, 4)
    og_key = key_box.copy()
    prev_key = key_box.copy()
-   print(f'Original Random Key: {key_box}') 
    round_keys.append(og_key)
    #Now generating round keys
    for i in range(10):
@@ -137,7 +136,6 @@ def expandKey(key_byte):
             else:
                new_round_key[k][j] = new_round_key[k][j-1]^prev_key[k][j]
       round_keys.append(new_round_key)
-   print(f'{len(round_keys)} round keys have been generated')
    return round_keys
 
 def processPT(pt_bytes,pt_hex):
@@ -146,16 +144,17 @@ def processPT(pt_bytes,pt_hex):
     if num_blocks_req == 1:
         padding_size = int((128-plaintext_size)/8)
         if padding_size == 0:
-            padding_size = 16
+            padding_size = 16   #adding a dummy block
         padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
+        print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
         boxed_pt_bytes = boxPTBytes(padded_pt_bytes)
         return num_blocks_req,boxed_pt_bytes
     else:
         padding_size = int(((num_blocks_req*128)-plaintext_size)/8)
         if padding_size == 0:
-            padding_size = 16
+            padding_size = 16   #adding a dummy block
         padded_pt_bytes = padInPKCS(pt_bytes,padding_size)
-        print(len(padded_pt_bytes))
+        print(f'Plaintext (after padding) = {padded_pt_bytes.hex()}')
         pt_blocks = []
         for i in range(num_blocks_req):
             block_i = [padded_pt_bytes[j] for j in range(16*i,(i+1)*16)]
@@ -166,6 +165,14 @@ def processPT(pt_bytes,pt_hex):
 def padInPKCS(message_bytes,padding_size):
    return message_bytes + bytes([padding_size] * padding_size)
 
+def unPadPKCS(decrypted_bytes):
+    np_array = np.array(decrypted_bytes)
+    flatten_array = np_array.ravel()
+    last_byte = flatten_array[len(flatten_array)-1]
+    unpadded_decrypted_bytes = flatten_array[:len(flatten_array) - int(last_byte)]
+    decrypted_hex = ''.join(format(x, '02x') for x in unpadded_decrypted_bytes)
+    return decrypted_hex
+
 def boxPTBytes(pt_box):
    box_output = np.array(pt_box).reshape(4, 4)
    return box_output
@@ -173,37 +180,40 @@ def boxPTBytes(pt_box):
 #Random key acquired and processed
 key_byte = bytearray(os.urandom(int(KEY_SIZE/8)))
 key_hex = key_byte.hex()
+print(f'\nRandom key (in Hexadecimal) = {key_hex} \n')
 round_keys = expandKey(key_byte)
 
 plaintext = input('Enter text you want to test AES on: ')
 plaintext_byte = bytearray(plaintext,'utf-8')
 plaintext_hex = plaintext_byte.hex()
-print(plaintext_hex)
+print(f'\nPlaintext (in Hexadecimal) = {plaintext_hex}')
 numblocks, pt_blocks = processPT(plaintext_byte,plaintext_hex)
 
 if numblocks == 1:
     encrypted_bytes,encrypted_hex = encryptIt(pt_blocks,round_keys)
+    print(f'\nCiphertext = {encrypted_hex}')
     decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
-    np_array = np.array(decrypted_bytes)
-    flatten_array = np_array.ravel()
-    last_byte = flatten_array[len(flatten_array)-1]
-    unpadded_decrypted_bytes = flatten_array[:len(flatten_array) - int(last_byte)]
-    decrypted_string = ''.join(format(x, '02x') for x in unpadded_decrypted_bytes)
-    print(decrypted_string)
+    print(f'Decrypted (in Hexadecimal) = {decrypted_hex}')
+    decrypted_hex = unPadPKCS(decrypted_bytes)
+    print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
+    print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
 else:
+    encrypted_hexstr = ''
+    decrypted_hexstr = ''
     decrypted_bytearr = []
     for i in range(numblocks):
         encrypted_bytes,encrypted_hex = encryptIt(pt_blocks[i],round_keys)
+        encrypted_hexstr = encrypted_hexstr+encrypted_hex
         decrypted_bytes,decrypted_hex = decryptIt(encrypted_bytes,round_keys)
+        decrypted_hexstr = decrypted_hexstr+decrypted_hex
         np_array = np.array(decrypted_bytes)
         flatten_array = np_array.ravel()
         decrypted_bytearr.append(flatten_array)
-    np_array = np.array(decrypted_bytearr)
-    flatten_array = np_array.ravel()
-    last_byte = flatten_array[len(flatten_array)-1]
-    unpadded_decrypted_bytes = flatten_array[:len(flatten_array) - int(last_byte)]
-    decrypted_string = ''.join(format(x, '02x') for x in unpadded_decrypted_bytes)
-    print(decrypted_string)
+    print(f'\nCiphertext = {encrypted_hexstr}')
+    print(f'Decrypted (in Hexadecimal) = {decrypted_hexstr}')
+    decrypted_hex = unPadPKCS(decrypted_bytearr)
+    print(f'Unpadded Decrypted (in Hexadecimal) = {decrypted_hex}')
+    print(f'\nDecrypted text (in String) = {bytearray.fromhex(decrypted_hex).decode()}')
 
     
 

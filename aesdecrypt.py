@@ -123,6 +123,5 @@ def decryptIt(ciphertext, round_keys):
         for j in range(4):
             decrypted_bytearr.append(xor_output[i][j])
     decrypted_string = ''.join(format(x, '02x') for x in decrypted_bytearr)
-    print(f'Ciphertext Decrypted to {decrypted_string}')
     return xor_output,decrypted_string
 

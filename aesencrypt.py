@@ -120,6 +120,5 @@ def encryptIt(plaintext, round_keys):
         for j in range(4):
             encrypted_bytearr.append(xor_output[i][j])
     encrypted_string = ''.join(format(x, '02x') for x in encrypted_bytearr)
-    print(f'Plaintext Encrypted to {encrypted_string}')
     return xor_output,encrypted_string
 
